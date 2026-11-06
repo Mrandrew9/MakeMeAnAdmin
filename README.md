@@ -4,7 +4,28 @@ Time-boxed local admin rights for macOS users, with automatic demotion and an au
 
 > Forked from [rthannigan/MakeMeAnAdmin](https://github.com/rthannigan/MakeMeAnAdmin) and rewritten: strict mode (`set -euo pipefail`), reliable console-user detection, centralized config, and a self-cleaning LaunchDaemon.
 
+![macOS](https://img.shields.io/badge/macOS-Jamf%20Pro-000000?logo=apple&logoColor=white)
+![Bash](https://img.shields.io/badge/bash-script-4EAA25?logo=gnubash&logoColor=white)
+
 ## What it does
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant SS as Jamf Self Service
+    participant S as MakeMeAnAdmin.sh
+    participant LD as LaunchDaemon
+    U->>SS: Click "Make me an admin"
+    SS->>S: Run as root
+    S->>S: Add console user to admin group
+    S->>LD: Install removal daemon (30 min)
+    S-->>U: Dialog: admin rights granted
+    Note over LD: Timer survives logout and reboot
+    LD->>LD: Remove user from admin
+    LD->>LD: log collect --last 30m
+    LD->>LD: Delete itself
+```
+
 
 1. Detects the logged-in console user (`stat -f%Su /dev/console`, so it doesn't rely on parsing `who`).
 2. Adds that user to the `admin` group and shows a confirmation dialog.
