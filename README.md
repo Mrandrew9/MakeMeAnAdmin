@@ -1,17 +1,39 @@
-Make Me an Admin!
+# Make Me an Admin (Jamf Self Service)
 
-This script, when run, will allow a standard user to upgrade themselves to an admin for 30 minutes and then will grab a snapshot of the logs for the past 30 minutes as well so you can track what they did.
+Time-boxed local admin rights for macOS users, with automatic demotion and an audit log. Built for Jamf Pro Self Service.
 
-The script will create a launch daemon to take care of demoting the user so that no matter how many times they log out or shut down, after 30 minutes of uptime, a script will be run to remove their admin privileges.
+> Forked from [rthannigan/MakeMeAnAdmin](https://github.com/rthannigan/MakeMeAnAdmin) and rewritten: strict mode (`set -euo pipefail`), reliable console-user detection, centralized config, and a self-cleaning LaunchDaemon.
 
-It is recommended to push this script as a policy to self service to run only once per day.
+## What it does
 
-Edits: If you wish to tailor the script to your own needs, here is where to make the changes.
+1. Detects the logged-in console user (`stat -f%Su /dev/console`, so it doesn't rely on parsing `who`).
+2. Adds that user to the `admin` group and shows a confirmation dialog.
+3. Installs a LaunchDaemon that fires after 30 minutes of uptime, so the timer survives logouts and reboots.
+4. When it fires, the removal script:
+   - removes the user from `admin`
+   - collects the last 30 minutes of unified logs (`log collect`) for auditing
+   - deletes the LaunchDaemon and itself
 
-User Prompt: Line 24 | Plain text Default Message: You now have administrative rights for 30 minutes. DO NOT ABUSE THIS PRIVILEGE... Default Button: "Make me an admin, please!"
+## Why
 
-Time Frame for Admin Rights: Line 39 | Integer in seconds Default: 1800 (30 minutes)
+It replaces standing admin rights with just-in-time elevation: users can install what they need, IT keeps least privilege, and security gets a log of what happened during the window.
 
-Time Frame for logs to be pulled: Line 82 | String after the "--last" flag in minutes Default: 30m
+## Configuration
 
-Location to save logs: line 82 | String after "--output" flag, must be valid directory Default: /private/var/userToRemove/$userToRemove.logarchive
+All settings live in the variables block at the top of `MakeMeAnAdmin.sh`:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ADMIN_DURATION_SECONDS` | `1800` | How long admin rights last |
+| `LABEL` | `com.company.removeAdmin` | LaunchDaemon label; change to your org's reverse-DNS |
+| `USER_STATE_DIR` | `/private/var/userToRemove` | Where the user record and `.logarchive` are saved |
+
+The `--last 30m` value in the removal script sets the log window; keep it in step with `ADMIN_DURATION_SECONDS`.
+
+## Deploying in Jamf Pro
+
+1. **Settings → Scripts → New**, then paste `MakeMeAnAdmin.sh`.
+2. Create a policy that runs the script, scoped to the right computers or users.
+3. Enable it in **Self Service**.
+4. Set **Execution Frequency** to *Once every day* to limit abuse.
+5. Optionally, collect `/private/var/userToRemove/*.logarchive` with a follow-up policy or EDR for review.
